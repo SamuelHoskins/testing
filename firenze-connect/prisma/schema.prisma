@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ARTIST
+  MODEL
+  CLIENT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id             String            @id @default(uuid()) @db.Uuid
+  supabaseId     String?           @unique @db.Uuid
+  email          String?           @unique
+  handle         String            @unique
+  name           String?
+  role           Role              @default(ARTIST)
+  bio            String?           @db.Text
+  location       String            @default("Florence, Italy")
+  dayRate        Int?
+  avatarUrl      String?
+  heroImageUrl   String?
+  isFeatured     Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  tags           UserTag[]
+  portfolioImages PortfolioImage[]
+  availability   AvailabilitySlot[]
+  bookingsAsTalent Booking[]       @relation("TalentBookings")
+  bookingsAsClient Booking[]       @relation("ClientBookings")
+  messages       Message[]         @relation("UserMessages")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  users     UserTag[]
+}
+
+model UserTag {
+  userId String
+  tagId  Int
+
+  assignedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tagId])
+}
+
+model PortfolioImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  url       String
+  caption   String?
+  displayOrder Int    @default(0)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @db.Uuid
+}
+
+model AvailabilitySlot {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  start     DateTime
+  end       DateTime
+  timezone  String   @default("Europe/Rome")
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, start])
+}
+
+model Booking {
+  id          String         @id @default(uuid()) @db.Uuid
+  talentId    String         @db.Uuid
+  clientId    String         @db.Uuid
+  projectName String
+  status      BookingStatus  @default(PENDING)
+  start       DateTime
+  end         DateTime
+  budget      Int?
+  notes       String?        @db.Text
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  talent User @relation("TalentBookings", fields: [talentId], references: [id], onDelete: Cascade)
+  client User @relation("ClientBookings", fields: [clientId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([talentId, start])
+  @@index([clientId, start])
+}
+
+model Message {
+  id        String   @id @default(uuid()) @db.Uuid
+  bookingId String   @db.Uuid
+  senderId  String   @db.Uuid
+  content   String   @db.Text
+  sentAt    DateTime @default(now())
+  readAt    DateTime?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender  User    @relation("UserMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, sentAt])
+}
